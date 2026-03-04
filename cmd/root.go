@@ -5,17 +5,13 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
-	// Register runners so they're available via runner.NewRunner().
-	_ "github.com/jumppad-labs/spektacular/internal/runner/bob"
-	_ "github.com/jumppad-labs/spektacular/internal/runner/claude"
 )
 
 const version = "0.1.0"
 
 var rootCmd = &cobra.Command{
 	Use:     "spektacular",
-	Short:   "Agent-agnostic tool for spec-driven development",
+	Short:   "Agent-driven tool for spec-driven development",
 	Version: version,
 }
 
@@ -27,10 +23,5 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(newCmd)
-	rootCmd.AddCommand(planCmd)
-	rootCmd.AddCommand(implementCmd)
-	rootCmd.AddCommand(runCmd)
-	rootCmd.AddCommand(testCmd)
+	rootCmd.AddCommand(specCmd)
 }
