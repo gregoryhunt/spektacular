@@ -30,17 +30,20 @@ var specCmd = &cobra.Command{
 			return fmt.Errorf("getting working directory: %w", err)
 		}
 
-		// Get workflow step definition
+		// Format spec path
+		specPath := filepath.Join(cwd, ".spektacular", "specs", name+".md")
+
+		// Render the template with mustache variables
+		instruction, err := spec.RenderStepTemplate(stepStr, specPath)
+		if err != nil {
+			return fmt.Errorf("rendering step template: %w", err)
+		}
+
+		// Get step metadata for JSON output
 		step, err := spec.GetSpecStepByID(stepStr)
 		if err != nil {
 			return err
 		}
-
-		// Format spec path
-		specPath := filepath.Join(cwd, ".spektacular", "specs", name+".md")
-
-		// Generate the prompt with spec path and next step info
-		prompt := formatStepPrompt(step, specPath, stepStr)
 
 		// Output as JSON
 		output := map[string]interface{}{
@@ -49,7 +52,7 @@ var specCmd = &cobra.Command{
 			"total_steps":  8,
 			"spec_path":    specPath,
 			"spec_name":    name,
-			"instruction":  prompt,
+			"instruction":  instruction,
 		}
 
 		jsonBytes, err := json.MarshalIndent(output, "", "  ")
@@ -67,26 +70,4 @@ func init() {
 	specCmd.Flags().StringP("step", "s", "", "Step letter a-h (required)")
 	specCmd.MarkFlagRequired("name")
 	specCmd.MarkFlagRequired("step")
-}
-
-func formatStepPrompt(step spec.SpecStep, specPath string, stepID string) string {
-	nextStep := ""
-	if stepID != "h" {
-		nextStep = string(rune(stepID[0] + 1))
-	}
-
-	prompt := fmt.Sprintf(`## Step %s: %s
-
-%s
-
-Spec file location: %s
-`, stepID, step.Title, step.Prompt, specPath)
-
-	if nextStep != "" {
-		prompt += fmt.Sprintf("\nOnce complete, call: spektacular spec --step %s\n", nextStep)
-	} else {
-		prompt += "\nAll steps complete! Review the spec file.\n"
-	}
-
-	return prompt
 }
