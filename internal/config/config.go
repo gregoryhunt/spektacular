@@ -57,6 +57,7 @@ type AgentConfig struct {
 
 // Config is the top-level Spektacular configuration.
 type Config struct {
+	Command    string           `yaml:"command"`
 	Models     ModelsConfig     `yaml:"models"`
 	Complexity ComplexityConfig `yaml:"complexity"`
 	Output     OutputConfig     `yaml:"output"`
@@ -67,6 +68,7 @@ type Config struct {
 // NewDefault returns a Config populated with default values.
 func NewDefault() Config {
 	return Config{
+		Command: "spektacular",
 		Models: ModelsConfig{
 			Default: "anthropic/claude-3-5-sonnet-20241022",
 			Tiers: ModelTiers{

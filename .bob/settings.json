@@ -1,5 +1,5 @@
 {
   "tools": {
-    "exclude": ["ask_followup_question"]
+    "exclude": []
   }
 }

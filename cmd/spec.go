@@ -6,10 +6,25 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jumppad-labs/spektacular/internal/config"
 	"github.com/jumppad-labs/spektacular/internal/spec"
 	"github.com/jumppad-labs/spektacular/internal/workflow"
 	"github.com/spf13/cobra"
 )
+
+// loadConfig loads the project config, falling back to defaults if the file
+// does not exist.
+func loadConfig() config.Config {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return config.NewDefault()
+	}
+	cfg, err := config.FromYAMLFile(filepath.Join(cwd, ".spektacular", "config.yaml"))
+	if err != nil {
+		return config.NewDefault()
+	}
+	return cfg
+}
 
 // Result is the JSON output from a spec workflow command.
 type Result struct {
@@ -137,8 +152,9 @@ func specNew(dataStr string) (*Result, error) {
 		return nil, fmt.Errorf("advancing to first step: %w", err)
 	}
 
+	cfg := loadConfig()
 	cur := wf.Current()
-	instruction, err := spec.RenderStep(cur, specPath, wf.NextStepName())
+	instruction, err := spec.RenderStep(cur, specPath, wf.NextStepName(), cfg.Command)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +194,8 @@ func specNext() (*Result, error) {
 		}, nil
 	}
 
-	instruction, err := spec.RenderStep(wf.Current(), st.ArtifactPath, wf.NextStepName())
+	cfg := loadConfig()
+	instruction, err := spec.RenderStep(wf.Current(), st.ArtifactPath, wf.NextStepName(), cfg.Command)
 	if err != nil {
 		return nil, err
 	}
@@ -206,8 +223,9 @@ func specGoto(stepName string) (*Result, error) {
 		return nil, err
 	}
 
+	cfg := loadConfig()
 	st := wf.State()
-	instruction, err := spec.RenderStep(wf.Current(), st.ArtifactPath, wf.NextStepName())
+	instruction, err := spec.RenderStep(wf.Current(), st.ArtifactPath, wf.NextStepName(), cfg.Command)
 	if err != nil {
 		return nil, err
 	}

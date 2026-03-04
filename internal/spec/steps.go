@@ -3,12 +3,11 @@ package spec
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/cbroglie/mustache"
 	"github.com/jumppad-labs/spektacular/internal/workflow"
+	"github.com/jumppad-labs/spektacular/templates"
 )
 
 // Steps returns the ordered step configs for a spec workflow.
@@ -37,9 +36,8 @@ func StepTitle(name string) string {
 }
 
 // RenderStep renders a step template with the standard variables.
-func RenderStep(stepName, specPath, nextStepName string) (string, error) {
-	tmplPath := templateFilePath("spec-steps", stepName+".md")
-	tmplBytes, err := os.ReadFile(tmplPath)
+func RenderStep(stepName, specPath, nextStepName, command string) (string, error) {
+	tmplBytes, err := templates.FS.ReadFile("spec-steps/" + stepName + ".md")
 	if err != nil {
 		return "", fmt.Errorf("loading template for step %s: %w", stepName, err)
 	}
@@ -50,6 +48,7 @@ func RenderStep(stepName, specPath, nextStepName string) (string, error) {
 		"section":   stepName,
 		"spec_path": specPath,
 		"next_step": nextStepName,
+		"command":   command,
 	}
 
 	out, err := mustache.Render(string(tmplBytes), data)
@@ -61,8 +60,7 @@ func RenderStep(stepName, specPath, nextStepName string) (string, error) {
 
 // RenderScaffold writes the spec scaffold template to specPath.
 func RenderScaffold(specPath, name string) error {
-	tmplPath := templateFilePath("", "spec-scaffold.md")
-	tmplBytes, err := os.ReadFile(tmplPath)
+	tmplBytes, err := templates.FS.ReadFile("spec-scaffold.md")
 	if err != nil {
 		return fmt.Errorf("reading scaffold template: %w", err)
 	}
@@ -75,31 +73,3 @@ func RenderScaffold(specPath, name string) error {
 	return os.WriteFile(specPath, []byte(rendered), 0644)
 }
 
-// templateFilePath resolves a template file, checking cwd/templates first,
-// then falling back to the path relative to the source file.
-func templateFilePath(subdir, filename string) string {
-	segments := []string{"templates"}
-	if subdir != "" {
-		segments = append(segments, subdir)
-	}
-	segments = append(segments, filename)
-
-	cwd, err := os.Getwd()
-	if err == nil {
-		path := filepath.Join(append([]string{cwd}, segments...)...)
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	_, srcFile, _, ok := runtime.Caller(0)
-	if ok {
-		base := filepath.Join(filepath.Dir(srcFile), "..", "..")
-		path := filepath.Join(append([]string{base}, segments...)...)
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return filepath.Join(segments...)
-}
