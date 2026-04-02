@@ -4,7 +4,7 @@ VERSION := 0.1.0
 .PHONY: build test lint clean install install-local cross harbor-test
 
 build:
-	go build -ldflags "-X github.com/jumppad-labs/spektacular/cmd.version=$(VERSION)" -o $(BINARY) .
+	go build -ldflags "-X github.com/jumppad-labs/spektacular/cmd.version=$(VERSION)" -o ./bin/$(BINARY) .
 
 test:
 	go test ./...
@@ -13,19 +13,17 @@ lint:
 	go vet ./...
 
 clean:
-	rm -f $(BINARY) $(BINARY)-*
-
-install: build
-	cp $(BINARY) $(GOPATH)/bin/$(BINARY)
+	rm -f ./bin 
 
 install-local: build
 	sudo cp $(BINARY) /usr/local/bin/$(BINARY)
 
 cross:
-	GOOS=darwin  GOARCH=arm64 go build -o $(BINARY)-darwin-arm64  .
-	GOOS=darwin  GOARCH=amd64 go build -o $(BINARY)-darwin-amd64  .
-	GOOS=linux   GOARCH=amd64 go build -o $(BINARY)-linux-amd64   .
-	GOOS=windows GOARCH=amd64 go build -o $(BINARY)-windows-amd64.exe .
+	CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -o ./bin/$(BINARY)-darwin-arm64  .
+	CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -o ./bin/$(BINARY)-darwin-amd64  .
+	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o ./bin/$(BINARY)-linux-amd64   .
+	CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -o ./bin/$(BINARY)-linux-arm64   .
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o ./bin/$(BINARY)-windows-amd64.exe .
 
 harbor-test:
 	GOOS=linux GOARCH=amd64 go build -o tests/harbor/spec-workflow/environment/spektacular .
