@@ -156,7 +156,8 @@ func runSpecNew(cmd *cobra.Command, _ []string) error {
 
 	wfCfg := workflow.Config{Command: cfg.Command, DryRun: dryRun}
 	steps := spec.Steps()
-	wf := workflow.New(steps, statePath, wfCfg, store.NewFileStore(dataDir))
+	out := output.New(cmd.OutOrStdout(), globalFields)
+	wf := workflow.New(steps, statePath, wfCfg, store.NewFileStore(dataDir), out)
 	wf.SetData("name", input.Name)
 
 	stdinKey, _ := cmd.Flags().GetString("stdin")
@@ -164,14 +165,7 @@ func runSpecNew(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Advance through the internal "new" step (creates spec file, no output).
 	if err := wf.Next(); err != nil {
-		return output.WriteError(cmd.ErrOrStderr(), err)
-	}
-
-	// Advance to "overview" and write the instruction.
-	out := output.New(cmd.OutOrStdout(), globalFields)
-	if err := wf.Next(out); err != nil {
 		return output.WriteError(cmd.ErrOrStderr(), err)
 	}
 	return nil
@@ -183,7 +177,7 @@ func runSpecGoto(cmd *cobra.Command, _ []string) error {
 			Input: &schemaObj{
 				Type: "object",
 				Properties: map[string]*schemaProp{
-					"step": {Type: "string", Enum: workflow.New(spec.Steps(), "", workflow.Config{}, nil).StepNames()},
+					"step": {Type: "string", Enum: workflow.New(spec.Steps(), "", workflow.Config{}, nil, nil).StepNames()},
 				},
 				Required: []string{"step"},
 			},
@@ -218,7 +212,8 @@ func runSpecGoto(cmd *cobra.Command, _ []string) error {
 
 	wfCfg := workflow.Config{Command: cfg.Command, DryRun: dryRun}
 	steps := spec.Steps()
-	wf := workflow.New(steps, stateFilePath(dataDir), wfCfg, store.NewFileStore(dataDir))
+	out := output.New(cmd.OutOrStdout(), globalFields)
+	wf := workflow.New(steps, stateFilePath(dataDir), wfCfg, store.NewFileStore(dataDir), out)
 
 	for k, v := range input {
 		if k != "step" {
@@ -231,8 +226,7 @@ func runSpecGoto(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	out := output.New(cmd.OutOrStdout(), globalFields)
-	if err := wf.Goto(stepVal, out); err != nil {
+	if err := wf.Goto(stepVal); err != nil {
 		return output.WriteError(cmd.ErrOrStderr(), err)
 	}
 	return nil
@@ -250,7 +244,7 @@ func runSpecStatus(cmd *cobra.Command, _ []string) error {
 	}
 
 	steps := spec.Steps()
-	wf := workflow.New(steps, stateFilePath(dataDir), workflow.Config{}, nil)
+	wf := workflow.New(steps, stateFilePath(dataDir), workflow.Config{}, nil, nil)
 	st := wf.State()
 
 	specName, _ := wf.GetData("name")
@@ -288,7 +282,7 @@ func runSpecSteps(cmd *cobra.Command, _ []string) error {
 		return output.Write(cmd.OutOrStdout(), s, "")
 	}
 
-	wf := workflow.New(spec.Steps(), "", workflow.Config{}, nil)
+	wf := workflow.New(spec.Steps(), "", workflow.Config{}, nil, nil)
 	out := output.New(cmd.OutOrStdout(), globalFields)
 	return out.WriteResult(spec.StepsResult{Steps: wf.StepNames()})
 }

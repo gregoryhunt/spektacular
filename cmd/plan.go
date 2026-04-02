@@ -134,7 +134,8 @@ func runPlanNew(cmd *cobra.Command, _ []string) error {
 
 	wfCfg := workflow.Config{Command: cfg.Command, DryRun: dryRun}
 	steps := plan.Steps()
-	wf := workflow.New(steps, statePath, wfCfg, store.NewFileStore(filepath.Join(dataDir, "..")))
+	out := output.New(cmd.OutOrStdout(), globalFields)
+	wf := workflow.New(steps, statePath, wfCfg, store.NewFileStore(filepath.Join(dataDir, "..")), out)
 	wf.SetData("name", input.Name)
 	if input.Overview != "" {
 		wf.SetData("overview", input.Overview)
@@ -145,14 +146,7 @@ func runPlanNew(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Advance through the internal "new" step (initializes state, no output).
 	if err := wf.Next(); err != nil {
-		return output.WriteError(cmd.ErrOrStderr(), err)
-	}
-
-	// Advance to "overview" and write the instruction.
-	out := output.New(cmd.OutOrStdout(), globalFields)
-	if err := wf.Next(out); err != nil {
 		return output.WriteError(cmd.ErrOrStderr(), err)
 	}
 	return nil
@@ -164,7 +158,7 @@ func runPlanGoto(cmd *cobra.Command, _ []string) error {
 			Input: &schemaObj{
 				Type: "object",
 				Properties: map[string]*schemaProp{
-					"step": {Type: "string", Enum: workflow.New(plan.Steps(), "", workflow.Config{}, nil).StepNames()},
+					"step": {Type: "string", Enum: workflow.New(plan.Steps(), "", workflow.Config{}, nil, nil).StepNames()},
 				},
 				Required: []string{"step"},
 			},
@@ -201,7 +195,8 @@ func runPlanGoto(cmd *cobra.Command, _ []string) error {
 
 	wfCfg := workflow.Config{Command: cfg.Command, DryRun: dryRun}
 	steps := plan.Steps()
-	wf := workflow.New(steps, planStateFilePath(dataDir), wfCfg, store.NewFileStore(filepath.Join(dataDir, "..")))
+	out := output.New(cmd.OutOrStdout(), globalFields)
+	wf := workflow.New(steps, planStateFilePath(dataDir), wfCfg, store.NewFileStore(filepath.Join(dataDir, "..")), out)
 
 	for k, v := range input {
 		if k != "step" {
@@ -219,8 +214,7 @@ func runPlanGoto(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	out := output.New(cmd.OutOrStdout(), globalFields)
-	if err := wf.Goto(stepVal, out); err != nil {
+	if err := wf.Goto(stepVal); err != nil {
 		return output.WriteError(cmd.ErrOrStderr(), err)
 	}
 	return nil
@@ -238,7 +232,7 @@ func runPlanStatus(cmd *cobra.Command, _ []string) error {
 	}
 
 	steps := plan.Steps()
-	wf := workflow.New(steps, planStateFilePath(dataDir), workflow.Config{}, nil)
+	wf := workflow.New(steps, planStateFilePath(dataDir), workflow.Config{}, nil, nil)
 	st := wf.State()
 
 	planPath := filepath.Join(filepath.Dir(dataDir), "plans", planName+".md")
@@ -275,7 +269,7 @@ func runPlanSteps(cmd *cobra.Command, _ []string) error {
 		return output.Write(cmd.OutOrStdout(), s, "")
 	}
 
-	wf := workflow.New(plan.Steps(), "", workflow.Config{}, nil)
+	wf := workflow.New(plan.Steps(), "", workflow.Config{}, nil, nil)
 	out := output.New(cmd.OutOrStdout(), globalFields)
 	return out.WriteResult(plan.StepsResult{Steps: wf.StepNames()})
 }

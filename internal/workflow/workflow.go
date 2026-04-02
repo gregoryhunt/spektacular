@@ -23,9 +23,10 @@ type ResultWriter interface {
 
 // StepCallback is the function signature for step callbacks.
 // Steps receive the data store, output writer, project store, and workflow config.
-// Workflow internals (next step name, totals, etc.) are injected into data as
-// transient overlay values before each call.
-type StepCallback func(data Data, out ResultWriter, st store.Store, cfg Config) error
+// The returned string is the name of the next step to advance to. If empty, the
+// workflow stays at the current step. The transition is deferred — it executes
+// after the current FSM event completes.
+type StepCallback func(data Data, out ResultWriter, st store.Store, cfg Config) (string, error)
 
 // StepConfig defines a single step in a workflow.
 // Name is the event name (and step identifier).
@@ -39,13 +40,15 @@ type StepConfig struct {
 
 // Workflow is a linear state machine with persistence.
 type Workflow struct {
-	FSM       *fsm.FSM
-	steps     []StepConfig
-	state     *State
-	data      *mapData
-	statePath string
-	cfg       Config
-	store     store.Store
+	FSM         *fsm.FSM
+	steps       []StepConfig
+	state       *State
+	data        *mapData
+	statePath   string
+	cfg         Config
+	store       store.Store
+	out         ResultWriter
+	pendingGoto string
 }
 
 // New builds a workflow FSM from step configs.
@@ -55,7 +58,7 @@ type Workflow struct {
 // State is automatically persisted on every transition unless cfg.DryRun is true.
 // st is the project store passed to every step callback; it may be nil for
 // workflows that do not perform storage operations.
-func New(steps []StepConfig, statePath string, cfg Config, st store.Store) *Workflow {
+func New(steps []StepConfig, statePath string, cfg Config, st store.Store, out ResultWriter) *Workflow {
 	events := make([]fsm.EventDesc, 0, len(steps)+1)
 	callbacks := make(fsm.Callbacks)
 
@@ -83,6 +86,7 @@ func New(steps []StepConfig, statePath string, cfg Config, st store.Store) *Work
 		statePath: statePath,
 		cfg:       cfg,
 		store:     st,
+		out:       out,
 	}
 	// Keep state.Data pointing at the same underlying map so saves include step writes.
 	w.state.Data = w.data.base
@@ -96,12 +100,13 @@ func New(steps []StepConfig, statePath string, cfg Config, st store.Store) *Work
 		if s.Callback != nil {
 			step := s // capture
 			callbacks["after_"+s.Name] = func(_ context.Context, e *fsm.Event) {
-				var out ResultWriter
-				if len(e.Args) > 0 && e.Args[0] != nil {
-					out, _ = e.Args[0].(ResultWriter)
-				}
-				if err := step.Callback(w.data, out, w.store, w.cfg); err != nil {
+				nextStep, err := step.Callback(w.data, w.out, w.store, w.cfg)
+				if err != nil {
 					e.Cancel(err)
+					return
+				}
+				if nextStep != "" {
+					w.pendingGoto = nextStep
 				}
 			}
 		}
@@ -133,35 +138,40 @@ func New(steps []StepConfig, statePath string, cfg Config, st store.Store) *Work
 	return w
 }
 
-// Next fires the first available transition, optionally passing a ResultWriter.
-func (w *Workflow) Next(out ...ResultWriter) error {
+// Next fires the first available transition.
+// If the step callback returns a next step name, Next delegates to Goto to
+// advance the workflow further.
+func (w *Workflow) Next() error {
 	transitions := w.FSM.AvailableTransitions()
 	if len(transitions) == 0 {
 		return fmt.Errorf("workflow is already complete")
 	}
-	var writer ResultWriter
-	if len(out) > 0 {
-		writer = out[0]
+	w.pendingGoto = ""
+	if err := w.FSM.Event(context.Background(), transitions[0]); err != nil {
+		return err
 	}
-	return w.FSM.Event(context.Background(), transitions[0], writer)
+	if w.pendingGoto != "" {
+		return w.Goto(w.pendingGoto)
+	}
+	return nil
 }
 
 // Goto jumps to a named step by firing the corresponding FSM event.
 // The step's Src list must include the current state; otherwise the FSM errors.
-func (w *Workflow) Goto(name string, out ...ResultWriter) error {
+// If the step callback returns a next step name, Goto calls itself recursively.
+func (w *Workflow) Goto(name string) error {
 	if w.Current() == name {
 		return nil
 	}
 
-	if !w.validStep(name) {
-		return fmt.Errorf("unknown step %q", name)
+	w.pendingGoto = ""
+	if err := w.FSM.Event(context.Background(), name); err != nil {
+		return err
 	}
-
-	var writer ResultWriter
-	if len(out) > 0 {
-		writer = out[0]
+	if w.pendingGoto != "" {
+		return w.Goto(w.pendingGoto)
 	}
-	return w.FSM.Event(context.Background(), name, writer)
+	return nil
 }
 
 // SetData stores a value in the persistent data store.
