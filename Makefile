@@ -30,4 +30,7 @@ cross:
 harbor-test:
 	GOOS=linux GOARCH=amd64 go build -o tests/harbor/spec-workflow/environment/spektacular .
 	ANTHROPIC_AUTH_TOKEN=$$(python3 -c "import json; print(json.load(open('$$HOME/.claude/.credentials.json'))['claudeAiOauth']['accessToken'])") \
-	harbor run -p tests/harbor/spec-workflow -a claude-code -m claude-sonnet-4-6 -o tests/harbor/jobs
+	harbor run -p tests/harbor/spec-workflow -a claude-code -m claude-sonnet-4-6 -o tests/harbor/jobs; \
+	echo ""; \
+	echo "=== Test Results ==="; \
+	cat $$(ls -td tests/harbor/jobs/*/spec-workflow__*/verifier/test-stdout.txt 2>/dev/null | head -1)
