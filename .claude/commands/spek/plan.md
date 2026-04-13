@@ -7,7 +7,7 @@ Create a new plan from an existing spec using the go run . CLI. The user must pr
 
 Spec name: $ARGUMENTS
 
-If no spec name was provided, ask the user which spec to plan against before proceeding.
+If no spec name was provided, check `.spektacular/state.json` for an active spec under `data.name`. If one exists, ask the user whether they want to plan against that spec, offering the option to name a different one. If no active spec is found, ask the user which spec to plan against before proceeding.
 
 Start the plan workflow by running:
 

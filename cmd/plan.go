@@ -65,20 +65,6 @@ var planStepsCmd = &cobra.Command{
 	RunE:  runPlanSteps,
 }
 
-// planDataDir returns the .spektacular/plan-<name> directory.
-func planDataDir(name string) (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("getting working directory: %w", err)
-	}
-	return filepath.Join(cwd, ".spektacular", "plan-"+name), nil
-}
-
-// planStateFilePath returns the state.json path within the plan data dir.
-func planStateFilePath(dataDir string) string {
-	return filepath.Join(dataDir, "state.json")
-}
-
 func runPlanNew(cmd *cobra.Command, _ []string) error {
 	if schema, _ := cmd.Flags().GetBool("schema"); schema {
 		s := commandSchema{
@@ -110,20 +96,16 @@ func runPlanNew(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("name must match ^[a-z0-9_-]+$ and be at most 64 characters")
 	}
 
-	dataDir, err := planDataDir(input.Name)
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return fmt.Errorf("creating plan data directory: %w", err)
-	}
-
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
 
-	statePath := planStateFilePath(dataDir)
+	statePath := stateFilePath(dataDir)
 	if dryRun {
 		statePath += ".dryrun-tmp"
 	} else {
@@ -133,7 +115,7 @@ func runPlanNew(cmd *cobra.Command, _ []string) error {
 	wfCfg := workflow.Config{Command: cfg.Command, DryRun: dryRun}
 	steps := plan.Steps()
 	out := output.New(cmd.OutOrStdout(), globalFields)
-	wf := workflow.New(steps, statePath, wfCfg, store.NewFileStore(filepath.Join(dataDir, "..")), out)
+	wf := workflow.New(steps, statePath, wfCfg, store.NewFileStore(dataDir), out)
 	wf.SetData("name", input.Name)
 
 	stdinKey, _ := cmd.Flags().GetString("stdin")
@@ -177,12 +159,10 @@ func runPlanGoto(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("\"step\" is required in --data")
 	}
 
-	// We need the plan name from the persisted state. Find the plan data dir.
-	planName, dataDir, err := findActivePlan()
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}
-
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
@@ -191,7 +171,7 @@ func runPlanGoto(cmd *cobra.Command, _ []string) error {
 	wfCfg := workflow.Config{Command: cfg.Command, DryRun: dryRun}
 	steps := plan.Steps()
 	out := output.New(cmd.OutOrStdout(), globalFields)
-	wf := workflow.New(steps, planStateFilePath(dataDir), wfCfg, store.NewFileStore(filepath.Join(dataDir, "..")), out)
+	wf := workflow.New(steps, stateFilePath(dataDir), wfCfg, store.NewFileStore(dataDir), out)
 
 	for k, v := range input {
 		if k != "step" {
@@ -199,9 +179,8 @@ func runPlanGoto(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Ensure name is set from state.
 	if _, ok := wf.GetData("name"); !ok {
-		wf.SetData("name", planName)
+		return fmt.Errorf("no active plan found — run 'plan new' first")
 	}
 
 	stdinKey, _ := cmd.Flags().GetString("stdin")
@@ -221,16 +200,21 @@ func runPlanStatus(cmd *cobra.Command, _ []string) error {
 		return output.Write(cmd.OutOrStdout(), s, "")
 	}
 
-	planName, dataDir, err := findActivePlan()
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}
 
 	steps := plan.Steps()
-	wf := workflow.New(steps, planStateFilePath(dataDir), workflow.Config{}, nil, nil)
+	wf := workflow.New(steps, stateFilePath(dataDir), workflow.Config{}, nil, nil)
 	st := wf.State()
 
-	planPath := filepath.Join(filepath.Dir(dataDir), plan.PlanFilePath(planName))
+	nameVal, ok := wf.GetData("name")
+	if !ok {
+		return fmt.Errorf("no active plan found — run 'plan new' first")
+	}
+	planName := fmt.Sprintf("%v", nameVal)
+	planPath := filepath.Join(dataDir, plan.PlanFilePath(planName))
 
 	stepInfos := wf.StepStatus()
 	entries := make([]plan.StepEntry, len(stepInfos))
@@ -267,43 +251,6 @@ func runPlanSteps(cmd *cobra.Command, _ []string) error {
 	wf := workflow.New(plan.Steps(), "", workflow.Config{}, nil, nil)
 	out := output.New(cmd.OutOrStdout(), globalFields)
 	return out.WriteResult(plan.StepsResult{Steps: wf.StepNames()})
-}
-
-// findActivePlan locates the most recently updated plan-* directory.
-func findActivePlan() (string, string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", "", fmt.Errorf("getting working directory: %w", err)
-	}
-	spektDir := filepath.Join(cwd, ".spektacular")
-	entries, err := os.ReadDir(spektDir)
-	if err != nil {
-		return "", "", fmt.Errorf("reading .spektacular directory: %w", err)
-	}
-
-	var latestName, latestDir string
-	var latestTime int64
-	for _, e := range entries {
-		if !e.IsDir() || len(e.Name()) <= 5 || e.Name()[:5] != "plan-" {
-			continue
-		}
-		dir := filepath.Join(spektDir, e.Name())
-		stPath := filepath.Join(dir, "state.json")
-		info, err := os.Stat(stPath)
-		if err != nil {
-			continue
-		}
-		if t := info.ModTime().UnixNano(); t > latestTime {
-			latestTime = t
-			latestName = e.Name()[5:] // strip "plan-" prefix
-			latestDir = dir
-		}
-	}
-
-	if latestDir == "" {
-		return "", "", fmt.Errorf("no active plan found — run 'plan new' first")
-	}
-	return latestName, latestDir, nil
 }
 
 func init() {

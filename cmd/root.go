@@ -42,8 +42,9 @@ func loadConfig() (config.Config, error) {
 	return config.FromYAMLFile(cfgPath)
 }
 
-// specDataDir returns the .spektacular directory for the current working directory.
-func specDataDir() (string, error) {
+// dataDir returns the .spektacular directory for the current working directory.
+// Both spec and plan workflows share this directory (and a single state.json).
+func dataDir() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("getting working directory: %w", err)

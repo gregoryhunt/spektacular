@@ -43,7 +43,7 @@ var specFileListCmd = &cobra.Command{
 }
 
 func runSpecFileWrite(cmd *cobra.Command, args []string) error {
-	dataDir, err := specDataDir()
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func runSpecFileWrite(cmd *cobra.Command, args []string) error {
 }
 
 func runSpecFileRead(cmd *cobra.Command, args []string) error {
-	dataDir, err := specDataDir()
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func runSpecFileRead(cmd *cobra.Command, args []string) error {
 }
 
 func runSpecFileDelete(_ *cobra.Command, args []string) error {
-	dataDir, err := specDataDir()
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func runSpecFileDelete(_ *cobra.Command, args []string) error {
 }
 
 func runSpecFileList(cmd *cobra.Command, args []string) error {
-	dataDir, err := specDataDir()
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}

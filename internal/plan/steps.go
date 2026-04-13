@@ -62,7 +62,7 @@ func overview() workflow.StepCallback {
 
 func discovery() workflow.StepCallback {
 	return func(data workflow.Data, out workflow.ResultWriter, st store.Store, cfg workflow.Config) (string, error) {
-		return "", writeStepResult("discovery", "approach", "plan-steps/02-discovery.md", data, out, st, cfg)
+		return "", writeStepResult("discovery", "architecture", "plan-steps/02-discovery.md", data, out, st, cfg)
 	}
 }
 

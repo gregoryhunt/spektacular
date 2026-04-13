@@ -138,7 +138,7 @@ func runSpecNew(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("name must match ^[a-z0-9_-]+$ and be at most 64 characters")
 	}
 
-	dataDir, err := specDataDir()
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}
@@ -201,7 +201,7 @@ func runSpecGoto(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("\"step\" is required in --data")
 	}
 
-	dataDir, err := specDataDir()
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}
@@ -238,7 +238,7 @@ func runSpecStatus(cmd *cobra.Command, _ []string) error {
 		return output.Write(cmd.OutOrStdout(), s, "")
 	}
 
-	dataDir, err := specDataDir()
+	dataDir, err := dataDir()
 	if err != nil {
 		return err
 	}
