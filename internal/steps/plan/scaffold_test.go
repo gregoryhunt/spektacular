@@ -10,7 +10,7 @@ import (
 )
 
 func TestPlanScaffoldShape(t *testing.T) {
-	raw, err := templates.FS.ReadFile("plan-scaffold.md")
+	raw, err := templates.FS.ReadFile("scaffold/plan.md")
 	require.NoError(t, err)
 
 	rendered, err := mustache.Render(string(raw), map[string]any{"name": "test"})

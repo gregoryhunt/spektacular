@@ -17,7 +17,7 @@ SPEC_FILE = SPEK_DIR / "specs" / "user-auth.md"
 AGENT_TRANSCRIPT = Path("/logs/agent/claude-code.txt")
 
 # The canonical step order as defined by the state machine in
-# internal/spec/steps.go → Steps().
+# internal/steps/spec/steps.go → Steps().
 EXPECTED_STEP_ORDER = [
     "new",
     "overview",
@@ -28,6 +28,7 @@ EXPECTED_STEP_ORDER = [
     "success_metrics",
     "non_goals",
     "verification",
+    "finished",
 ]
 
 # Minimum character count for each section's content (excluding comments).

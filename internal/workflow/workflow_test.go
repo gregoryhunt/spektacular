@@ -168,6 +168,8 @@ func TestCompletedStepsTracked(t *testing.T) {
 	wf.Next() // → two
 	require.Equal(t, []string{"one"}, wf.State().CompletedSteps)
 
-	wf.Next() // → three
-	require.Equal(t, []string{"one", "two"}, wf.State().CompletedSteps)
+	wf.Next() // → three (terminal)
+	// The terminal step is marked completed by commitTerminal after the
+	// event fires, since no further transition will mark it later.
+	require.Equal(t, []string{"one", "two", "three"}, wf.State().CompletedSteps)
 }

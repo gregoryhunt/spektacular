@@ -20,12 +20,12 @@ layers of assertions:
 All expectation maps (step order, skills per step, sub-agent spawn steps)
 are hand-maintained in this module — they are the independent behavioural
 oracle. Do NOT derive them from `spektacular plan steps` or from the
-`templates/plan-steps/*.md` files at runtime: that would make the test
+`templates/steps/plan/*.md` files at runtime: that would make the test
 tautological (asserting "the agent did what the state machine / templates
 told it to do" is a closed loop, not a behavioural check).
 
-When a legitimate change lands in `internal/plan/steps.go` Steps() or in
-`templates/plan-steps/*.md`, update the corresponding map below in the
+When a legitimate change lands in `internal/steps/plan/steps.go` Steps() or
+in `templates/steps/plan/*.md`, update the corresponding map below in the
 same commit.
 """
 
@@ -46,8 +46,8 @@ TRANSCRIPT = Path("/logs/agent/claude-code.txt")
 
 # Hand-maintained canonical step order — the behavioural oracle for
 # state-machine correctness. When a legitimate state-machine change lands
-# (add/rename/reorder a step), update this list AND internal/plan/steps.go
-# Steps() in the same commit.
+# (add/rename/reorder a step), update this list AND
+# internal/steps/plan/steps.go Steps() in the same commit.
 EXPECTED_STEP_ORDER = [
     "new",
     "overview",
@@ -63,24 +63,31 @@ EXPECTED_STEP_ORDER = [
     "open_questions",
     "out_of_scope",
     "verification",
+    "write_plan",
+    "write_context",
+    "write_research",
     "finished",
 ]
 
 # Hand-maintained skill retrievals the agent is expected to make during
 # each step. Independent oracle — when a template under
-# templates/plan-steps/ changes its skill references, this map must be
+# templates/steps/plan/ changes its skill references, this map must be
 # updated in the same commit.
 EXPECTED_SKILLS_PER_STEP = {
-    "discovery": frozenset({
-        "discover-project-commands",
-        "discover-test-patterns",
-        "spawn-planning-agents",
-    }),
+    "discovery": frozenset(
+        {
+            "discover-project-commands",
+            "discover-test-patterns",
+            "spawn-planning-agents",
+        }
+    ),
     "phases": frozenset({"spawn-implementation-agents"}),
-    "verification": frozenset({
-        "gather-project-metadata",
-        "determine-feature-slug",
-    }),
+    "verification": frozenset(
+        {
+            "gather-project-metadata",
+            "determine-feature-slug",
+        }
+    ),
 }
 
 # Hand-maintained set of steps whose templates direct the agent to spawn
@@ -88,7 +95,33 @@ EXPECTED_SKILLS_PER_STEP = {
 EXPECTED_SPAWN_STEPS = frozenset({"discovery"})
 
 MIN_SECTION_LENGTH = 100
-PLACEHOLDER_MARKERS = ("TODO", "TBD", "FIXME", "placeholder", "[insert")
+
+# Hand-maintained list of scaffold slot strings that must be replaced when
+# the agent fills the scaffolds. An occurrence of any of these substrings in
+# a written artefact means the agent left a slot unfilled. These are literal
+# strings copied from templates/scaffold/{plan,context,research}.md — when
+# the scaffolds change, this list must be updated in the same commit.
+#
+# Matching is case-sensitive and substring-based, which is fine because
+# these are distinctive angle-bracketed slot labels that don't appear in
+# legitimate prose.
+SCAFFOLD_LEFTOVERS = (
+    # plan.md scaffold
+    "<user-facing title>",
+    "<short title>",
+    "<one-paragraph description",
+    "<outcome statement in plain language>",
+    # context.md scaffold
+    "<title matching plan.md>",
+    "<file:line>",
+    "<description of change>",
+    "<approach>",
+    # research.md scaffold
+    "<description>",
+    "<reason with citation>",
+    "<path:line>",
+    "<one-line summary of what was learned>",
+)
 
 # Section headings (lowercase) expected to appear in plan.md after the
 # verification step writes it.
@@ -115,6 +148,7 @@ INSTRUCTION_NEXT_STEP_RE = re.compile(
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class ToolCall:
     index: int
@@ -128,27 +162,26 @@ class ToolCall:
 class StepWindow:
     step: str
     start: int  # inclusive
-    end: int    # exclusive
+    end: int  # exclusive
 
 
 # ---------------------------------------------------------------------------
 # State / artefact helpers
 # ---------------------------------------------------------------------------
 
+
 def find_plan_state_file() -> Path:
-    """Locate .spektacular/plan-<name>/state.json."""
-    matches = sorted(SPEK_DIR.glob("plan-*/state.json"))
-    assert matches, f"No plan state file found under {SPEK_DIR}"
-    assert len(matches) == 1, (
-        f"Expected exactly one plan state file, found: {matches}"
-    )
-    return matches[0]
+    """Locate the unified .spektacular/state.json."""
+    state_file = SPEK_DIR / "state.json"
+    assert state_file.exists(), f"No state file found at {state_file}"
+    return state_file
 
 
 def find_plan_name() -> str:
-    state_file = find_plan_state_file()
-    # Parent directory is .spektacular/plan-<name>
-    return state_file.parent.name[len("plan-"):]
+    state = load_state()
+    name = (state.get("data") or {}).get("name")
+    assert name, "state.json has no data.name — cannot resolve plan name"
+    return name
 
 
 def load_state() -> dict:
@@ -165,14 +198,14 @@ def parse_sections(text: str) -> dict:
     """Split markdown into sections keyed by lowercase heading.
 
     HTML comments are stripped so they do not count toward content length.
-    Both `##` and `###` headings become section keys.
+    `##` headings become section keys.
     """
     cleaned = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
     sections: dict = {}
     current = None
     lines: list = []
     for line in cleaned.splitlines():
-        m = re.match(r"^#{2,3}\s+(.+)", line)
+        m = re.match(r"^#{2}\s+(.+)", line)
         if m:
             if current is not None:
                 sections[current] = "\n".join(lines).strip()
@@ -188,6 +221,7 @@ def parse_sections(text: str) -> dict:
 # ---------------------------------------------------------------------------
 # Transcript extraction
 # ---------------------------------------------------------------------------
+
 
 def _iter_transcript_objects():
     assert TRANSCRIPT.exists(), f"Agent transcript not found at {TRANSCRIPT}"
@@ -217,13 +251,15 @@ def extract_tool_calls() -> list:
                 continue
             name = block.get("name", "")
             if name in ("Bash", "Skill", "Task", "Agent"):
-                calls.append(ToolCall(
-                    index=len(calls),
-                    type=name,
-                    name=name,
-                    input=block.get("input", {}) or {},
-                    tool_use_id=block.get("id", "") or "",
-                ))
+                calls.append(
+                    ToolCall(
+                        index=len(calls),
+                        type=name,
+                        name=name,
+                        input=block.get("input", {}) or {},
+                        tool_use_id=block.get("id", "") or "",
+                    )
+                )
     return calls
 
 
@@ -255,6 +291,7 @@ def extract_tool_results() -> dict:
 # ---------------------------------------------------------------------------
 # Plan-CLI call detection and step windowing
 # ---------------------------------------------------------------------------
+
 
 def _bash_command(call: ToolCall) -> str:
     return call.input.get("command", "") if call.type == "Bash" else ""
@@ -321,7 +358,9 @@ def resolve_step_windows(calls: list) -> dict:
     if "new" in windows and "overview" not in windows:
         nw = windows["new"]
         windows["overview"] = StepWindow(
-            step="overview", start=nw.start, end=nw.end,
+            step="overview",
+            start=nw.start,
+            end=nw.end,
         )
     return windows
 
@@ -368,6 +407,7 @@ def _results_cache() -> dict:
 # Workflow-level tests
 # ---------------------------------------------------------------------------
 
+
 class TestWorkflow:
     """Overall workflow integrity checks."""
 
@@ -382,8 +422,7 @@ class TestWorkflow:
     def test_workflow_reached_finished(self):
         state = load_state()
         assert state.get("current_step") == "finished", (
-            f"Workflow did not finish; current_step="
-            f"{state.get('current_step')}"
+            f"Workflow did not finish; current_step={state.get('current_step')}"
         )
 
     def test_all_steps_completed(self):
@@ -405,16 +444,25 @@ class TestWorkflow:
             f"  Got:      {completed}"
         )
 
-    def test_no_placeholder_text_in_artefacts(self):
+    def test_no_unfilled_scaffold_slots(self):
+        """Every scaffold slot must be replaced with real content.
+
+        This catches partial fills where the agent left a `<placeholder>`
+        span from the scaffold unchanged. It does NOT scan for words like
+        "TODO" or "TBD" in prose — those are legitimate when discussing
+        genuine implementation uncertainty.
+        """
         offenders = []
         for path in plan_artefact_paths():
             if not path.exists():
                 continue
             text = path.read_text()
-            for marker in PLACEHOLDER_MARKERS:
-                if marker in text:
-                    offenders.append((path.name, marker))
-        assert not offenders, f"Placeholder markers in artefacts: {offenders}"
+            for slot in SCAFFOLD_LEFTOVERS:
+                if slot in text:
+                    offenders.append((path.name, slot))
+        assert not offenders, (
+            f"Unfilled scaffold slots in artefacts: {offenders}"
+        )
 
     def test_artefact_files_exist(self):
         for path in plan_artefact_paths():
@@ -424,6 +472,7 @@ class TestWorkflow:
 # ---------------------------------------------------------------------------
 # Per-step CLI-call tests
 # ---------------------------------------------------------------------------
+
 
 class TestPlanCLICalls:
     """For every expected step, the agent invoked the matching plan CLI call."""
@@ -443,19 +492,18 @@ class TestPlanCLICalls:
             # Overview is reached implicitly by `plan new`; accept either
             # an explicit goto or the implicit `plan new` transition.
             assert "new" in observed or "overview" in observed, (
-                f"Neither 'plan new' nor 'plan goto overview' observed; "
-                f"got: {observed}"
+                f"Neither 'plan new' nor 'plan goto overview' observed; got: {observed}"
             )
         else:
             assert step in observed, (
-                f"No plan CLI call observed for step '{step}'; "
-                f"got: {observed}"
+                f"No plan CLI call observed for step '{step}'; got: {observed}"
             )
 
 
 # ---------------------------------------------------------------------------
 # Template-driven skill-retrieval tests
 # ---------------------------------------------------------------------------
+
 
 class TestSkillRetrieval:
     """Every skill a step template references is retrieved during that step."""
@@ -466,18 +514,13 @@ class TestSkillRetrieval:
         calls = _calls_cache()
         window = windows.get(step)
         assert window is not None, (
-            f"Step '{step}' was never entered — cannot verify skill "
-            f"'{skill}' retrieval"
+            f"Step '{step}' was never entered — cannot verify skill '{skill}' retrieval"
         )
-        window_calls = calls[window.start:window.end]
+        window_calls = calls[window.start : window.end]
         retrieved = False
         for c in window_calls:
             if c.type == "Skill":
-                skill_name = (
-                    c.input.get("skill")
-                    or c.input.get("name")
-                    or ""
-                )
+                skill_name = c.input.get("skill") or c.input.get("name") or ""
                 if skill_name == skill:
                     retrieved = True
                     break
@@ -496,6 +539,7 @@ class TestSkillRetrieval:
 # Template-driven sub-agent spawn tests
 # ---------------------------------------------------------------------------
 
+
 class TestSubAgentSpawning:
     """Steps whose templates expect sub-agent spawning actually spawn one."""
 
@@ -505,10 +549,9 @@ class TestSubAgentSpawning:
         calls = _calls_cache()
         window = windows.get(step)
         assert window is not None, (
-            f"Step '{step}' was never entered — cannot verify sub-agent "
-            f"spawning"
+            f"Step '{step}' was never entered — cannot verify sub-agent spawning"
         )
-        window_calls = calls[window.start:window.end]
+        window_calls = calls[window.start : window.end]
         spawned = any(c.type in ("Task", "Agent") for c in window_calls)
         assert spawned, (
             f"Step '{step}' expected sub-agent spawning but found no "
@@ -520,6 +563,7 @@ class TestSubAgentSpawning:
 # ---------------------------------------------------------------------------
 # Artefact content tests
 # ---------------------------------------------------------------------------
+
 
 def _plan_sections():
     plan_path, _, _ = plan_artefact_paths()
@@ -564,9 +608,7 @@ class TestContextAndResearch:
 
     def test_research_md_has_content(self):
         _, _, research_path = plan_artefact_paths()
-        assert research_path.exists(), (
-            f"research.md missing at {research_path}"
-        )
+        assert research_path.exists(), f"research.md missing at {research_path}"
         content = research_path.read_text()
         cleaned = re.sub(r"<!--.*?-->", "", content, flags=re.DOTALL)
         assert len(cleaned.strip()) >= 500, (
@@ -588,6 +630,7 @@ class TestContextAndResearch:
 # ---------------------------------------------------------------------------
 # Instruction next_step validity invariant
 # ---------------------------------------------------------------------------
+
 
 class TestInstructionNextStepValidity:
     """Every rendered instruction's next_step directive must reference a
@@ -619,9 +662,9 @@ class TestInstructionNextStepValidity:
                 # Not all stdout lines are pure JSON (error paths, wrapped
                 # harness output). Skip.
                 continue
-            instruction = payload.get("instruction", "") if isinstance(
-                payload, dict
-            ) else ""
+            instruction = (
+                payload.get("instruction", "") if isinstance(payload, dict) else ""
+            )
             if not instruction:
                 continue
             m = INSTRUCTION_NEXT_STEP_RE.search(instruction)
@@ -629,11 +672,12 @@ class TestInstructionNextStepValidity:
                 continue
             next_step = m.group(1)
             if next_step not in valid:
-                offenders.append({
-                    "from_step": payload.get("step"),
-                    "rendered_next_step": next_step,
-                })
+                offenders.append(
+                    {
+                        "from_step": payload.get("step"),
+                        "rendered_next_step": next_step,
+                    }
+                )
         assert not offenders, (
-            f"Rendered instructions reference invalid next steps: "
-            f"{offenders}"
+            f"Rendered instructions reference invalid next steps: {offenders}"
         )

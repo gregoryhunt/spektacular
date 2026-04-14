@@ -31,13 +31,11 @@ spektacular plan goto --data '{"step":"open_questions"}'
 spektacular plan goto --data '{"step":"out_of_scope"}'
 spektacular plan goto --data '{"step":"verification"}'
 
-# The verification step's instruction says to write plan.md, context.md, and
-# research.md at the paths under .spektacular/plans/user-auth/. Write them
-# directly so the `finished` step's existence check passes.
+# The verification step's instruction pipes each filled document back via
+# stdin — spektacular itself writes the files. Three sequential pipes:
+# write_plan → write_context → write_research → finished.
 
-mkdir -p /app/.spektacular/plans/user-auth
-
-cat > /app/.spektacular/plans/user-auth/plan.md <<'PLAN_EOF'
+cat <<'PLAN_EOF' | spektacular plan goto --data '{"step":"write_plan"}' --stdin plan_template
 # Plan: user-auth
 
 ## Overview
@@ -159,7 +157,7 @@ None — every implementation uncertainty was resolved during planning.
 - Fine-grained permission scoping beyond role
 PLAN_EOF
 
-cat > /app/.spektacular/plans/user-auth/context.md <<'CONTEXT_EOF'
+cat <<'CONTEXT_EOF' | spektacular plan goto --data '{"step":"write_context"}' --stdin context_template
 # Context: user-auth
 
 ## Current State Analysis
@@ -226,7 +224,7 @@ is CPU-bound; benchmarks show ~0.3ms per verification on the production
 hardware profile.
 CONTEXT_EOF
 
-cat > /app/.spektacular/plans/user-auth/research.md <<'RESEARCH_EOF'
+cat <<'RESEARCH_EOF' | spektacular plan goto --data '{"step":"write_research"}' --stdin research_template
 # Research: user-auth
 
 ## Alternatives considered and rejected

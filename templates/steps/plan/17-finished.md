@@ -9,5 +9,3 @@ The plan workflow is complete. Three files should now exist next to each other u
 If any of these files is missing, STOP and ask the user how to proceed — do not advance.
 
 Inform the user that the plan workflow is finished and the three documents are ready for review.
-
-When ready to share the plan with the team, use the `share-docs` skill to promote it to the shared namespace.

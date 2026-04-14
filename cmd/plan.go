@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/jumppad-labs/spektacular/internal/output"
-	"github.com/jumppad-labs/spektacular/internal/plan"
+	"github.com/jumppad-labs/spektacular/internal/steps/plan"
 	"github.com/jumppad-labs/spektacular/internal/store"
 	"github.com/jumppad-labs/spektacular/internal/workflow"
 	"github.com/spf13/cobra"

@@ -153,6 +153,7 @@ func (w *Workflow) Next() error {
 	if w.pendingGoto != "" {
 		return w.Goto(w.pendingGoto)
 	}
+	w.commitTerminal()
 	return nil
 }
 
@@ -171,7 +172,30 @@ func (w *Workflow) Goto(name string) error {
 	if w.pendingGoto != "" {
 		return w.Goto(w.pendingGoto)
 	}
+	w.commitTerminal()
 	return nil
+}
+
+// commitTerminal marks the terminal step as completed and persists state
+// when the workflow has landed on the last step. enter_state only marks
+// src on each transition, so without this the terminal step would never be
+// recorded in completed_steps (nothing ever transitions away from it).
+func (w *Workflow) commitTerminal() {
+	if len(w.steps) == 0 {
+		return
+	}
+	last := w.steps[len(w.steps)-1].Dst
+	if w.Current() != last {
+		return
+	}
+	if slices.Contains(w.state.CompletedSteps, last) {
+		return
+	}
+	w.state.markCompleted(last)
+	w.state.UpdatedAt = time.Now().UTC()
+	if !w.cfg.DryRun {
+		_ = saveState(w.statePath, w.state)
+	}
 }
 
 // SetData stores a value in the persistent data store.

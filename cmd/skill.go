@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/jumppad-labs/spektacular/internal/output"
-	"github.com/jumppad-labs/spektacular/internal/skills"
+	"github.com/jumppad-labs/spektacular/templates"
 	"github.com/spf13/cobra"
 )
 
@@ -47,9 +47,9 @@ func runSkill(cmd *cobra.Command, args []string) error {
 	}
 
 	name := args[0]
-	filename := "skill_" + name + ".md"
+	filename := "skills/skill_" + name + ".md"
 
-	content, err := skills.FS.ReadFile(filename)
+	content, err := templates.FS.ReadFile(filename)
 	if err != nil {
 		// List available skills for the error message.
 		available := listSkills()
@@ -66,7 +66,7 @@ func runSkill(cmd *cobra.Command, args []string) error {
 
 // listSkills returns the names of all embedded skills.
 func listSkills() []string {
-	entries, err := skills.FS.ReadDir(".")
+	entries, err := templates.FS.ReadDir("skills")
 	if err != nil {
 		return nil
 	}

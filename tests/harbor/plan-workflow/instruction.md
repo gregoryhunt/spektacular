@@ -35,9 +35,12 @@ The skill will guide you through every plan step from `overview` through
 - At the `phases` step, retrieve the `spawn-implementation-agents` skill the
   template references.
 - At the `verification` step, retrieve the `gather-project-metadata` and
-  `determine-feature-slug` skills the template references, then use the `Write`
-  tool to write `plan.md`, `context.md`, and `research.md` to disk at the paths
-  the instruction gives you.
+  `determine-feature-slug` skills the template references. Then follow the
+  rendered pipe instructions: spektacular writes each file when you pipe the
+  filled content back via `--stdin plan_template` / `--stdin context_template`
+  / `--stdin research_template` across the `write_plan`, `write_context`, and
+  `write_research` steps. Do **not** use the `Write` tool for these three files
+  — the workflow owns the write.
 
 Write meaningful, non-placeholder content for every section of every artefact.
 The plan is a plan for *implementing the JWT authentication feature described

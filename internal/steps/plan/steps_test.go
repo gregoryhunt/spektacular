@@ -88,6 +88,9 @@ func TestStepsOrderMatchesExpected(t *testing.T) {
 		"open_questions",
 		"out_of_scope",
 		"verification",
+		"write_plan",
+		"write_context",
+		"write_research",
 		"finished",
 	}
 	got := Steps()
@@ -109,6 +112,9 @@ func TestFSMWalkFromNewToFinished(t *testing.T) {
 
 	wf := workflow.New(Steps(), statePath, workflow.Config{Command: "spektacular", DryRun: true}, st, writer)
 	wf.SetData("name", "test")
+	wf.SetData("plan_template", "plan content")
+	wf.SetData("context_template", "context content")
+	wf.SetData("research_template", "research content")
 
 	require.Equal(t, "start", wf.Current())
 
@@ -126,6 +132,9 @@ func TestFSMWalkFromNewToFinished(t *testing.T) {
 		"open_questions",
 		"out_of_scope",
 		"verification",
+		"write_plan",
+		"write_context",
+		"write_research",
 		"finished",
 	}
 

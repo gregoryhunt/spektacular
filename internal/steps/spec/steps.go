@@ -46,7 +46,7 @@ func new() workflow.StepCallback {
 			return "", fmt.Errorf("store required for new step")
 		}
 		name := getString(data, "name")
-		rendered, err := renderTemplate("spec-scaffold.md", map[string]any{"name": name})
+		rendered, err := renderTemplate("scaffold/spec.md", map[string]any{"name": name})
 		if err != nil {
 			return "", err
 		}
@@ -59,54 +59,54 @@ func new() workflow.StepCallback {
 
 func overview() workflow.StepCallback {
 	return func(data workflow.Data, out workflow.ResultWriter, st store.Store, cfg workflow.Config) (string, error) {
-		return "", writeStepResult("overview", "requirements", "spec-steps/01-overview.md", data, out, st, cfg)
+		return "", writeStepResult("overview", "requirements", "steps/spec/01-overview.md", data, out, st, cfg)
 	}
 }
 
 func requirements() workflow.StepCallback {
 	return func(data workflow.Data, out workflow.ResultWriter, st store.Store, cfg workflow.Config) (string, error) {
-		return "", writeStepResult("requirements", "acceptance_criteria", "spec-steps/02-requirements.md", data, out, st, cfg)
+		return "", writeStepResult("requirements", "acceptance_criteria", "steps/spec/02-requirements.md", data, out, st, cfg)
 	}
 }
 
 func acceptanceCriteria() workflow.StepCallback {
 	return func(data workflow.Data, out workflow.ResultWriter, st store.Store, cfg workflow.Config) (string, error) {
-		return "", writeStepResult("acceptance_criteria", "constraints", "spec-steps/03-acceptance_criteria.md", data, out, st, cfg)
+		return "", writeStepResult("acceptance_criteria", "constraints", "steps/spec/03-acceptance_criteria.md", data, out, st, cfg)
 	}
 }
 
 func constraints() workflow.StepCallback {
 	return func(data workflow.Data, out workflow.ResultWriter, st store.Store, cfg workflow.Config) (string, error) {
-		return "", writeStepResult("constraints", "technical_approach", "spec-steps/04-constraints.md", data, out, st, cfg)
+		return "", writeStepResult("constraints", "technical_approach", "steps/spec/04-constraints.md", data, out, st, cfg)
 	}
 }
 
 func technicalApproach() workflow.StepCallback {
 	return func(data workflow.Data, out workflow.ResultWriter, st store.Store, cfg workflow.Config) (string, error) {
-		return "", writeStepResult("technical_approach", "success_metrics", "spec-steps/05-technical_approach.md", data, out, st, cfg)
+		return "", writeStepResult("technical_approach", "success_metrics", "steps/spec/05-technical_approach.md", data, out, st, cfg)
 	}
 }
 
 func successMetrics() workflow.StepCallback {
 	return func(data workflow.Data, out workflow.ResultWriter, st store.Store, cfg workflow.Config) (string, error) {
-		return "", writeStepResult("success_metrics", "non_goals", "spec-steps/06-success_metrics.md", data, out, st, cfg)
+		return "", writeStepResult("success_metrics", "non_goals", "steps/spec/06-success_metrics.md", data, out, st, cfg)
 	}
 }
 
 func nonGoals() workflow.StepCallback {
 	return func(data workflow.Data, out workflow.ResultWriter, st store.Store, cfg workflow.Config) (string, error) {
-		return "", writeStepResult("non_goals", "verification", "spec-steps/07-non_goals.md", data, out, st, cfg)
+		return "", writeStepResult("non_goals", "verification", "steps/spec/07-non_goals.md", data, out, st, cfg)
 	}
 }
 
 func verification() workflow.StepCallback {
 	return func(data workflow.Data, out workflow.ResultWriter, st store.Store, cfg workflow.Config) (string, error) {
 		specName := getString(data, "name")
-		scaffold, err := renderTemplate("spec-scaffold.md", map[string]any{"name": specName})
+		scaffold, err := renderTemplate("scaffold/spec.md", map[string]any{"name": specName})
 		if err != nil {
 			return "", err
 		}
-		return "", writeStepResult("verification", "finished", "spec-steps/08-verification.md", data, out, st, cfg,
+		return "", writeStepResult("verification", "finished", "steps/spec/08-verification.md", data, out, st, cfg,
 			map[string]any{"spec_template": scaffold})
 	}
 }
@@ -120,7 +120,7 @@ func finished() workflow.StepCallback {
 				return "", err
 			}
 		}
-		return "", writeStepResult("finished", "", "spec-steps/09-finished.md", data, out, st, cfg)
+		return "", writeStepResult("finished", "", "steps/spec/09-finished.md", data, out, st, cfg)
 	}
 }
 
